@@ -6,12 +6,23 @@ import mime from "mime/lite";
 import { MessageExt, MessageInfo } from "../interfaces/MessageInfo";
 import { sign } from "@ltonetwork/http-message-signatures";
 import LTOService from "./LTO.service";
+import switchEnvironment from "./Env.service";
 
 export const lto = new LTO(process.env.REACT_APP_LTO_NETWORK_ID);
 
 export class RelayService {
-  static relayURL = process.env.REACT_APP_RELAY || process.env.REACT_APP_LOCAL;
-  private static relay = new Relay(`${this.relayURL}`);
+  private static relayURL =
+    process.env.REACT_APP_RELAY || process.env.REACT_APP_LOCAL;
+  private static relayProdUrl =
+    process.env.REACT_APP_PROD_RELAY || process.env.REACT_APP_LOCAL;
+
+  static async getRelayUrl() {
+    const isProd = switchEnvironment.getEnv;
+    const url = isProd ? this.relayProdUrl : this.relayURL;
+    if (!url) return "";
+    console.log(url);
+    return url;
+  }
 
   /**
    * Handle All Signed Requests
@@ -46,6 +57,7 @@ export class RelayService {
     options: { headers?: Record<string, string> } = {}
   ) {
     try {
+      console.log(url);
       const sender = LTOService.account;
       const request = {
         headers: {
@@ -90,7 +102,7 @@ export class RelayService {
     try {
       if (sender) {
         const messageHash = await sendFile(
-          this.relay,
+          RelayService.getRelayUrl,
           content,
           sender,
           recipient
@@ -116,7 +128,8 @@ export class RelayService {
     const isRelayAvailable = await this.isRelayUp();
     if (!isRelayAvailable) return [];
 
-    const url = `${this.relayURL}/inboxes/${address}/`;
+    const getUrl = await this.getRelayUrl();
+    const url = `${getUrl}/inboxes/${address}/`;
 
     try {
       const responses = await this.handleSignedRequest("GET", url);
@@ -127,7 +140,7 @@ export class RelayService {
 
       const serverHashes = await Promise.all(
         responses.data.map(async (response: MessageInfo) => {
-          const messageUrl = `${this.relayURL}/inboxes/${address}/${response.hash}`;
+          const messageUrl = `${url}/inboxes/${address}/${response.hash}`;
           const infoResponse = await this.handleSignedRequest(
             "GET",
             messageUrl
@@ -165,7 +178,10 @@ export class RelayService {
     const address = sender.address;
     const isRelayAvailable = await this.isRelayUp();
     if (!isRelayAvailable) return null;
-    const url = `${this.relayURL}/inboxes/${address}/`;
+
+    const getUrl = await this.getRelayUrl();
+    const url = `${getUrl}/inboxes/${address}/`;
+
     try {
       const responses = await this.handleSignedRequest("GET", url);
 
@@ -173,7 +189,7 @@ export class RelayService {
 
       const ownableData = await Promise.all(
         responses.data.map(async (response: MessageInfo) => {
-          const messageUrl = `${this.relayURL}/inboxes/${address}/${response.hash}`;
+          const messageUrl = `${url}/inboxes/${address}/${response.hash}`;
           const infoResponse = await this.handleSignedRequest(
             "GET",
             messageUrl
@@ -199,7 +215,8 @@ export class RelayService {
     }
 
     const address = sender.address;
-    const url = `${this.relayURL}/inboxes/${address}/${hash}`;
+    const getUrl = await this.getRelayUrl();
+    const url = `${getUrl}/inboxes/${address}/${hash}`;
 
     try {
       const response = await this.handleSignedRequest("DELETE", url);
@@ -219,9 +236,10 @@ export class RelayService {
    * Check if relay service is up.
    */
   static async isRelayUp(): Promise<boolean> {
-    if (!this.relayURL) return false;
+    const url = await this.getRelayUrl();
+    if (!url) return false;
     try {
-      const response = await this.handleSignedRequest("HEAD", this.relayURL);
+      const response = await this.handleSignedRequest("HEAD", url);
       if (response.status === 200) {
         return true;
       } else {

@@ -9,9 +9,8 @@ export class PollingService {
     const clientHashes = LocalStorageService.get("messageHashes") || [];
 
     try {
-      const url = `${RelayService.relayURL}/inboxes/${encodeURIComponent(
-        address
-      )}/hashes`;
+      const getUrl = await RelayService.getRelayUrl();
+      const url = `${getUrl}/inboxes/${encodeURIComponent(address)}/hashes`;
 
       // Get cached ETag and Last-Modified values if they exist
       const headers: Record<string, string> = {};
