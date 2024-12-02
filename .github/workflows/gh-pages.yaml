@@ -3,7 +3,7 @@ name: Ownables SDK Demo
 on:
   push:
     branches:
-      - development
+      - main
 
 permissions:
   contents: write
